@@ -1,9 +1,15 @@
 package mr
 
-import "fmt"
-import "log"
-import "net/rpc"
-import "hash/fnv"
+import (
+    "encoding/json"
+    "fmt"
+    "hash/fnv"
+    "io"
+    "io/ioutil"
+    "log"
+    "net/rpc"
+    "os"
+)
 
 
 //
@@ -25,6 +31,11 @@ func ihash(key string) int {
 }
 
 
+func yOf(key string, Y int) int {
+	return ihash(key) % Y + 1
+}
+
+
 //
 // main/mrworker.go calls this function.
 //
@@ -37,6 +48,106 @@ func Worker(mapf func(string, string) []KeyValue,
 	// CallExample()
 
 }
+
+func mapper(
+    filename string,
+	x int,
+    Y int,
+    mapf func(string, string) []KeyValue,
+) (bool, error) {
+    
+	// open txt!
+	contentBytes, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return false, err
+	}
+
+	// get kvs!
+	kvs := mapf(filename, string(contentBytes))
+
+    // divide kvs! (分桶)
+	mp := make(map[int][]KeyValue)
+	for _, kv := range kvs {
+		y := yOf(kv.Key, Y)
+		mp[y] = append(mp[y], kv)
+	}
+
+	// write kvs into intermedia files!
+	for y := 1; y <= Y; y++ {
+		if err := intermediateFileWriter(fmt.Sprintf("mr-%d-%d", x, y),  mp[y]); err != nil { return false, err }
+	}
+
+    // no problem! return true!
+	return true, nil
+	
+
+
+}
+
+func intermediateFileWriter(filename string, kvs []KeyValue) error {
+
+	// create file!
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// write file!
+	enc := json.NewEncoder(file)
+	for _, kv := range kvs {
+		if err := enc.Encode(kv); err != nil { return err }
+	}
+
+	// return nil!
+	return nil
+
+}
+
+func reducer(
+    y int,
+    X int,
+    reducef func(string, []string) string,
+) (bool, error) {
+
+	// prepair our map[key][]val!
+    mp := make(map[string][]string)
+	for x := 1; x <= X; x++ {
+		file, err := os.Open(fmt.Sprintf("mr-%d-%d", x, y))
+		if err != nil { return false, err }
+		dec := json.NewDecoder(file)
+		for {
+			var kv KeyValue
+			err := dec.Decode(&kv)
+			if err != nil && err != io.EOF { return false, err } // decode err! 
+			if err == io.EOF { break } // end of file, so break out!
+
+			mp[kv.Key] = append(mp[kv.Key], kv.Value) // value kv!
+		} 
+
+	}
+
+	// create finalFile!
+	finalFile, err := os.Create(fmt.Sprintf("mr-out-%d", y - 1)) // y-1 here!
+	if err != nil {
+		return false, err
+	}
+	defer finalFile.Close()
+
+	// fill finalFile!
+	for key, vals := range mp {
+		output := reducef(key, vals)
+		if err := fmt.Fprintf(finalFile, "%v %v\n", key, output); err != nil { return false, err }
+		
+	}
+
+	// finish! return true!
+	return true, nil
+
+
+}
+
+
 
 //
 // example function to show how to make an RPC call to the coordinator.
