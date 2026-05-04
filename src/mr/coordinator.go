@@ -24,6 +24,14 @@ func (c *Coordinator) Example(args *ExampleArgs, reply *ExampleReply) error {
 	return nil
 }
 
+func (c *Coordinator) RequestTask(np *Empty, tap *TaskAssignment) error {
+
+}
+
+func (c *Coordinator) ResponseTask(tcp *TaskCompletion, np *Empty) error {
+
+}
+
 
 //
 // start a thread that listens for RPCs from worker.go

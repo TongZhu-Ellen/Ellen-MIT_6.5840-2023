@@ -40,14 +40,63 @@ func yOf(key string, Y int) int {
 // main/mrworker.go calls this function.
 //
 func Worker(mapf func(string, string) []KeyValue,
-	reducef func(string, []string) string) {
+	reducef func(string, []string) string,
+) {
+	exit := false
+	wait := false
 
-	// Your worker implementation here.
+	for !exit {
+		if wait {
+			time.Sleep(time.Second)
+		}
+		exit, wait = eachCall(mapf, reducef)
+	}
 
 	// uncomment to send the Example RPC to the coordinator.
 	// CallExample()
 
 }
+
+// 返回eachCall所造成的线程后果：结束？等待？
+func eachCall(mapf func(string, string) []KeyValue,
+	reducef func(string, []string) string,
+) (bool, bool) {
+	tap := &TaskAssignment{}
+	called := call("Coordinator.RequestTask", &Empty{}, tap)
+	var taskComplete bool
+	var err error
+
+	if !called {
+		return false, true
+	}
+
+	switch tap.TaskType {
+	case TaskExit:
+		return true, false
+	case TaskNone:
+		return false, true
+	case TaskMap:
+		taskComplete, err = mapper(tap.Filename, tap.LowerX, tap.Y, mapf)
+	case TaskReduce:
+		taskComplete, err = reducer(tap.LowerY, tap.X, reducef)
+	}
+
+	if err != nil {
+		log.Println(err)
+	} else {
+		tcp := &TaskComplete{TaskComplete: taskComplete}
+		call("Coordinator.ResponseTask", tcp, &Empty{})
+	}
+
+	return false, false
+}
+
+
+
+
+
+
+
 
 func mapper(
     filename string,

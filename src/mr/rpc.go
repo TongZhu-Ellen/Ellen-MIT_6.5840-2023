@@ -32,25 +32,30 @@ const (
     TaskExit  = -99 // 关门大吉，退出
 )
 
-type RequestArgs struct {
-	
+type Empty struct{}
 
-}
 
-type RequestReply struct {
-	TaskType TaskType
-	filename string 
-	x int
-	y int 
-	X int // # of files in total
-	Y int // nReduce
-	
-} 
+type TaskAssignment struct {
+
 /*
 in map we need x no y
 in reduce we need y no x
 X & Y here are universal
 */
+
+	TaskType TaskType
+	Filename string 
+	LowerX int
+	LowerY int 
+	X int // # of files in total
+	Y int // nReduce
+	
+} 
+
+type TaskCompletion struct {
+	TaskComplete bool
+}
+
 
 
 
