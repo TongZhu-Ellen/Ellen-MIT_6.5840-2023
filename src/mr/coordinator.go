@@ -90,10 +90,10 @@ func (c *Coordinator) RequestTask(np *Empty, tap *TaskAssignment) error {
 
 
 	if c.phase == 0 {
-		x = fetchMap()
+		x = c.fetchMap()
 	}
 	if c.phase == 1 {
-		y = fetchReduce()
+		y = c.fetchReduce()
 	}
 	if c.phase == 2 {
 		tap.TaskType = TaskExit
@@ -105,6 +105,7 @@ func (c *Coordinator) RequestTask(np *Empty, tap *TaskAssignment) error {
 		tap.Filename = c.mapTask[x].filename
 		tap.LowerX = x 
 
+		c.mapTask[x].status = Doing
 		c.mapTask[x].assignedAt = time.Now()
 		return nil
 	}
@@ -112,6 +113,7 @@ func (c *Coordinator) RequestTask(np *Empty, tap *TaskAssignment) error {
 		tap.TaskType = TaskReduce
 		tap.LowerY = y 
 
+		c.reduceTask[y].status = Doing
 		c.reduceTask[y].assignedAt = time.Now()
 		return nil
 	}
@@ -137,7 +139,7 @@ func (c *Coordinator) fetchMap() int {
 		case Todo:
 			return x
 		case Doing:
-			if time.Since(tp.assignedAt) > 10*time.Second {
+			if time.Since(tp.assignedAt) > 15*time.Second {
 				tp.status = Todo
 				return x
 			}

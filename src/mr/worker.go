@@ -157,9 +157,10 @@ func intermediateFileWriter(filename string, kvs []KeyValue) error {
 	}
 
 	return os.Rename(filename + ".tmp", filename)
+}
 	
 
-}
+
 
 func reducer(
 	y int,
@@ -198,7 +199,7 @@ func reducer(
 	// fill finalFile!
 	for key, vals := range mp {
 		output := reducef(key, vals)
-		if err := fmt.Fprintf(finalFile, "%v %v\n", key, output); err != nil {
+		if _, err := fmt.Fprintf(finalFile, "%v %v\n", key, output); err != nil {
 			return err
 		}
 	}
