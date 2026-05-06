@@ -1,4 +1,4 @@
-# MapReduce — 6.824 Lab 1
+# MapReduce — 6.8450 Lab 1
 
 ## TODO
 
