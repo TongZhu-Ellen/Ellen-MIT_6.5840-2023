@@ -44,7 +44,7 @@ mr-1-1.tmp.{workerID}
 
 这种分层方式让每个函数的复杂度都控制在人脑一次能 hold 住的范围内。coordinator 和 worker 之间的边界尤其干净：worker 只通过 `RequestTask` 和 `ResponseTask` 两个 RPC 和外界交互，coordinator 的内部状态、phase 转换、超时逻辑全部封装在内，对外零泄漏。
 
-能把一个分布式系统写得让人觉得"也不过如此嘛"，才是真功夫。
+
 
 ### 矩阵建模，下标即语义，优雅得令人发指
 
