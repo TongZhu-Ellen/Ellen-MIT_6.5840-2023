@@ -15,6 +15,13 @@ const (
 )
 
 
+
+type Entry struct {
+	Term int 
+	Command interface{}	
+}
+
+
 type RaftState int
 const (
     Follower  RaftState = iota // 0
@@ -30,15 +37,18 @@ type Raft struct {
 	me        int                 // this peer's index into peers[]
 	dead      int32               // set by Kill()
 
-	// Your data here (2A, 2B, 2C).
-	// Look at the paper's Figure 2 for a description of what
-	// state a Raft server must maintain.
-
-	currentTerm int
-	state RaftState
-	votedFor int 
+	// 2A: 
+	currentTerm int = 0
+	state RaftState = Follower
+	votedFor int = -1
 	
-	lastTouchedAt time.Time
+	lastTouchedAt time.Time = time.Now() // 一上来就触发选举很显然是不对的。
+
+	// 2B:
+	log []Entry = make([]Entry, 1)
+	nextIndex []int // 只有leader会需要的东西。nextIdx[server]
+
+
 
 
 }
@@ -112,12 +122,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.persister = persister
 	rf.me = me
 
-	// Your initialization code here (2A, 2B, 2C).
-	rf.currentTerm = 0
-	rf.votedFor = -1
-	rf.state = Follower
-
-	rf.lastTouchedAt = time.Now() // 一上来就触发选举很显然是不对的。
+	
+	
 
 
 	// initialize from state persisted before a crash
