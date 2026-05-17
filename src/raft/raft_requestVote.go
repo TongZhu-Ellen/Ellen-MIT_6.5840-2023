@@ -8,7 +8,7 @@ type RequestVoteArgs struct {
 	// Your data here (2A, 2B).
 
 	Term int // candidate's term!
-	CandidateID int
+	CandidateId int
 }
 
 // example RequestVote RPC reply structure.
@@ -25,67 +25,65 @@ type RequestVoteReply struct {
 func (rf *Raft) election() {
 
 	rf.mu.Lock()
-	defer rf.mu.Unlock()
-
 	rf.currentTerm++
-	supporter := 1 
-	rf.votedFor = rf.me // I support myself!
+	rf.votedFor = rf.me
+	supporter := 1 // I voted for myself, and hence:
 	rf.lastTouchedAt = time.Now()
+	rf.mu.Unlock()
 
-	args := &RequestVoteArgs{
-		Term: rf.currentTerm,
-		CandidateID: rf.me,
-	}
+	
 
-	for i := 0; i < len(rf.peers); i++ {
+
+
+    for i := 0; i < len(rf.peers); i++ {
 
 		if i == rf.me {
-			continue // I voted for myself already! 
+			continue 
 		}
 
 		go func(server int) {
+			rf.mu.Lock() // ------- 锁 -------
+			
+
+			args := &RequestVoteArgs{
+				Term: rf.currentTerm,
+				CandidateId: rf.me,
+			}
 
 			reply := &RequestVoteReply{}
+
+			rf.mu.Unlock() // ------- 锁 -------
+
 			ok := rf.sendRequestVote(server, args, reply)
 
-			// 咳咳，此处其他人处理中... 
+			// server 处理中！
 
 			if !ok {
-				return // 该server 死了
+				return 
 			}
 
 			rf.mu.Lock()
 			defer rf.mu.Unlock()
 
+			
 			if reply.Term > rf.currentTerm {
-				rf.currentTerm = reply.Term
-				rf.state = Follower
-				rf.votedFor = -1
-				return // 后续不需要了你已经不是candidate了别操这心了！
+				rf.toFollower(reply.Term)
 			}
 
-			if rf.state == Candidate && rf.currentTerm == args.Term && reply.VoteGranted {
+			if reply.VoteGranted && rf.state == Candidate && rf.currentTerm == args.Term {
 				supporter++
-				
 				if supporter > len(rf.peers) / 2 {
-					// 立刻当选！
+					// become leader!!!
 					rf.state = Leader 
-					go rf.leaderTicker() // 会立刻发心跳的。
+					go rf.leaderTicker()
 				}
 			}
 
-			
+
+		}(i)
 
 
-
-
-
-
-
-		} (i)
 	}
-
-
 
 
 }
@@ -107,28 +105,26 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	if args.Term < rf.currentTerm {
-		// 那你还不如我呢！
-		reply.Term = rf.currentTerm
-		reply.VoteGranted = false 
-		return 
-	}
+	oldTerm := rf.currentTerm
 
 	if args.Term > rf.currentTerm {
-		// 需要重新变回follower
-		rf.currentTerm = args.Term
-		rf.state = Follower
-		rf.votedFor = -1 
+		rf.toFollower(args.Term)
+	}
+
+	if args.Term < oldTerm {
+		reply.VoteGranted = false
+		
+	} else if (rf.votedFor == -1 || rf.votedFor == args.CandidateId) {
+		reply.VoteGranted = true
+		rf.votedFor = args.CandidateId  // 别忘了记录
+    	rf.lastTouchedAt = time.Now()   // 重置计时器
 	}
 
 	reply.Term = rf.currentTerm
 
-	reply.VoteGranted = rf.votedFor == -1 || rf.votedFor == args.CandidateID // TODO: 2B 需要加上比较Log的逻辑！
 
-	if reply.VoteGranted {
-		rf.votedFor = args.CandidateID
-		rf.lastTouchedAt = time.Now()
-	}
+
+	
 
 
 

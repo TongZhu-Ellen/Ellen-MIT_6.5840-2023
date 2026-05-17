@@ -15,13 +15,6 @@ const (
 )
 
 
-
-type Entry struct {
-	Term int 
-	Command interface{}	
-}
-
-
 type RaftState int
 const (
     Follower  RaftState = iota // 0
@@ -37,23 +30,24 @@ type Raft struct {
 	me        int                 // this peer's index into peers[]
 	dead      int32               // set by Kill()
 
-	// 2A: 
-	currentTerm int = 0
-	state RaftState = Follower
-	votedFor int = -1
+	// Your data here (2A, 2B, 2C).
+	// Look at the paper's Figure 2 for a description of what
+	// state a Raft server must maintain.
+
+	currentTerm int
+	state RaftState
+	votedFor int 
 	
-	lastTouchedAt time.Time = time.Now() // 一上来就触发选举很显然是不对的。
-
-	// 2B:
-	log []Entry = make([]Entry, 1)
-	nextIndex []int // 只有leader会需要的东西。nextIdx[server]
-
-
+	lastTouchedAt time.Time
 
 
 }
 
 func (rf *Raft) GetState() (int, bool) {
+
+	if rf.killed() {
+		return -1, false
+	}
 
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -81,6 +75,17 @@ func (rf *Raft) killed() bool {
 	z := atomic.LoadInt32(&rf.dead)
 	return z == 1
 }
+func (rf *Raft) leaderTicker() {
+    for {
+    
+        if _, leads := rf.GetState(); !leads {
+			return 
+		}
+        
+        rf.appendYourEntries()
+        time.Sleep(HEATBEAT_INTERVAL)
+    }
+}
 
 func (rf *Raft) ticker() {
 	for rf.killed() == false {
@@ -107,13 +112,7 @@ func (rf *Raft) ticker() {
 	}
 }
 
-func (rf *Raft) leaderTicker() {
-	for rf.killed() == false {
-		rf.appendYourEntries()
 
-	    time.Sleep(HEATBEAT_INTERVAL)
-	}
-}
 
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
@@ -122,8 +121,12 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.persister = persister
 	rf.me = me
 
-	
-	
+	// Your initialization code here (2A, 2B, 2C).
+	rf.currentTerm = 0
+	rf.votedFor = -1
+	rf.state = Follower
+
+	rf.lastTouchedAt = time.Now() // 一上来就触发选举很显然是不对的。
 
 
 	// initialize from state persisted before a crash
