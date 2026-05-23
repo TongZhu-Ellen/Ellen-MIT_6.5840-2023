@@ -60,7 +60,7 @@ func (rf *Raft) collectOpinion() {
 
 			ok := rf.sendRequestVote(server, args, reply)
 
-			// server 处理中！
+			// ---------------- server 处理中！ ---------------
 
 			if !ok {
 				return 
@@ -77,21 +77,7 @@ func (rf *Raft) collectOpinion() {
 			if reply.VoteGranted && rf.state == Candidate && rf.currentTerm == args.Term {
 				supporter++
 				if supporter > len(rf.peers) / 2 {
-					rf.state = Leader
-
-					lastLogIndex := len(rf.log) - 1
-
-					rf.nextIndex = make([]int, len(rf.peers)) // "initialized to leader's lastLogIndex + 1"
-					rf.matchIndex = make([]int, len(rf.peers)) // "initialized to 0"
-
-					for i := range rf.peers {
-						rf.nextIndex[i] = lastLogIndex + 1 
-						rf.matchIndex[i] = 0
-					}
-
-					rf.nextIndex[rf.me] = -1
-					rf.matchIndex[rf.me] = -1
-
+					rf.becomeLeader()
 					go rf.leaderTicker()
 				}
 			}

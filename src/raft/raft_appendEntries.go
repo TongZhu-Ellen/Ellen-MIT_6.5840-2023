@@ -52,7 +52,7 @@ func (rf *Raft)  appendYourEntries() {
 				
 				PrevLogIndex: prevLogIndex,
 				PrevLogTerm: rf.log[prevLogIndex].Term,
-				Entries: rf.log[prevLogIndex+1 : ],
+				Entries: append([]Entry{}, rf.log[prevLogIndex+1:]...), // 这里直接引用，因为是本机上，所以直接跑出data-race！
 				LeaderCommit: rf.commitIndex,
 			}
 			reply := &AppendEntriesReply{}
@@ -61,7 +61,7 @@ func (rf *Raft)  appendYourEntries() {
 			ok := rf.sendAppendEntries(server, args, reply) 
 
 
-			// servers处理中！
+			// -------------------------------------- servers处理中！ ---------------------------------------
 
 			if !ok {
 				return 
@@ -70,67 +70,27 @@ func (rf *Raft)  appendYourEntries() {
 			rf.mu.Lock()
 			defer rf.mu.Unlock()
 
-			if reply.Term > rf.currentTerm {
+			// 更改自身term的逻辑永远先行！
+			if reply.Term > rf.currentTerm { 
 				rf.turnPage(reply.Term)
 			}
 
-			if rf.currentTerm != args.Term || rf.state != Leader {
+			// 朝代已然改变！
+			if rf.currentTerm != args.Term || rf.state != Leader { 
 				return
 			}
 
-			// "If successful: update nextIndex and matchIndex for follower"
 			// "If AppendEntries fails because of log inconsistency: decrement nextIndex and retry"
-			if reply.Success {
-				rf.matchIndex[server] = args.PrevLogIndex + len(args.Entries)
-				rf.nextIndex[server] = rf.matchIndex[server] + 1
-			} else {
-
-				if reply.XTerm == -1 {
-					// 情况1：follower 日志太短
-					rf.nextIndex[server] = reply.XLen
-				} else {
-					// 情况2：找 leader 日志里有没有 XTerm
-					found := -1
-					for i := len(rf.log) - 1; i >= 1; i-- {
-						if rf.log[i].Term == reply.XTerm {
-							found = i
-							break
-						}
-					}
-					if found != -1 {
-						// 找到了（found != -1）：leader 也有这个 term，说明这个 term 的日志两边都有，冲突在这个 term 的结尾之后。从 found + 1 开始发。
-						rf.nextIndex[server] = found + 1
-					} else {
-						// 没找到（found == -1）：leader 没有这个 term，follower 这个 term 的日志全是错的。从 follower 这个 term 的开头 XIndex 开始覆盖。
-						rf.nextIndex[server] = reply.XIndex
-					}
-				}
-
-				return 
-
+			// "If successful: update nextIndex and matchIndex for follower"
+			if !reply.Success {
+				rf.stepBack(server, reply.XTerm, reply.XIndex, reply.XLen)
+				return
 			}
-
-			
-		    // If there exists an N such that N > commitIndex, a majority
-			// of matchIndex[i] ≥ N, and log[N].term == currentTerm: set commitIndex = N
-			for N := len(rf.log) - 1; N > rf.commitIndex; N-- {
-				count := 0
-				for i := 0; i < len(rf.peers); i++ {
-					if i == rf.me {
-						count++
-						continue
-					}
-					if rf.matchIndex[i] >= N {
-						count++
-					}
-				}
-				if count > len(rf.peers) / 2 && rf.log[N].Term == rf.currentTerm {
-					rf.commitIndex = N
-					break
-				}
-			}
-
-
+            
+			rf.matchIndex[server] = args.PrevLogIndex + len(args.Entries)
+			rf.nextIndex[server] = rf.matchIndex[server] + 1		
+			rf.updateCommitIndex()
+					
 
 		}(i)
 
@@ -153,7 +113,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
-	//  --------------  全局条2 --------------
+	//  --------------  全局条 --------------
 	if args.Term > rf.currentTerm { 
 		// "If RPC request or response contains term T > currentTerm: set currentTerm = T, convert to follower"
 		rf.turnPage(args.Term)
