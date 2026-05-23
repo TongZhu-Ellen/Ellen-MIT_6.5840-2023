@@ -69,7 +69,7 @@ func (rf *Raft) updateCommitIndex() {
 }
 
 // startOfTerm returns the first log index with the given term, or -1 if not found.
-func (rf *Raft) startOfTerm(term int) int {
+func (rf *Raft) lastIndexOfTerm(term int) int {
     for i := len(rf.log) - 1; i >= 1; i-- {
         if rf.log[i].Term == term {
             return i
@@ -86,9 +86,9 @@ func (rf *Raft) stepBack(server int, xTerm, xIndex, xLen int) {
         return
     }
     // 情况2：找 leader 日志里有没有 XTerm
-    if start := rf.startOfTerm(xTerm); start != -1 {
+    if term := rf.lastIndexOfTerm(xTerm); term != -1 {
         // leader 也有这个 term，冲突在这个 term 的结尾之后，从 start + 1 开始发
-        rf.nextIndex[server] = start + 1
+        rf.nextIndex[server] = term + 1
     } else {
         // leader 没有这个 term，follower 这个 term 的日志全是错的，从 XIndex 开始覆盖
         rf.nextIndex[server] = xIndex
