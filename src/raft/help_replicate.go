@@ -34,7 +34,7 @@ package raft
 // leader专属函数
 func (rf *Raft) updateCommitIndex() {
     // 从最新日志往前找，寻找可以提交的最大 N
-    for N := rf.logLength() - 1; N > rf.commitIndex; N-- {
+    for N := rf.logLength() - 1; N > rf.commitIndex && N > rf.snapIndex; N-- {
         count := 0
         for i := 0; i < len(rf.peers); i++ {
             if i == rf.me {
@@ -82,6 +82,30 @@ func (rf *Raft) stepBack(server int, xTerm, xIndex, xLen int) {
     } else {
         // leader 没有这个 term，follower 这个 term 的日志全是错的，从 XIndex 开始覆盖
         rf.nextIndex[server] = xIndex
+    }
+}
+
+// reconcileEntries 从 myIdx（本地日志全局index）和 yourIdx（entries切片下标）开始，
+// 将incoming entries与本地日志逐条比对：遇到term冲突则截断本地日志，
+// 最后将剩余未处理的entries追加到本地日志。
+func (rf *Raft) reconcileEntries(myIdx int, yourIdx int, entries []Entry) {
+    for myIdx < rf.logLength() && yourIdx < len(entries) {
+        if rf.get(myIdx).Term != entries[yourIdx].Term {
+            rf.log = rf.log[:myIdx - rf.snapIndex]
+            break
+        }
+        myIdx++
+        yourIdx++
+    }
+    rf.batchAppend(entries[yourIdx:])
+}
+
+func (rf *Raft) tryUpdateCommit(leaderCommit int) {
+    if leaderCommit > rf.commitIndex {
+        rf.commitIndex = min(leaderCommit, rf.logLength() - 1)
+        if rf.commitIndex > rf.lastApplied {
+            rf.bEffortKick()
+        }
     }
 }
 

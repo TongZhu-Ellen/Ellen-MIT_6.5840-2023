@@ -2,6 +2,21 @@ package raft
 
 
 
+func (rf *Raft) getSnap() int {
+    return rf.log[0].Term
+}
+
+func (rf *Raft) setSnap(snapTerm int) {
+    rf.log[0].Term = snapTerm
+    
+}
+
+
+
+
+
+
+
 
 
 

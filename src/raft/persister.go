@@ -19,7 +19,6 @@ func (rf *Raft) persist() {
     e.Encode(rf.log)
 	// 2D
 	e.Encode(rf.snapIndex)
-    e.Encode(rf.snapTerm)
     rf.persister.Save(w.Bytes(), rf.snapshot)
 }
 
@@ -34,19 +33,16 @@ func (rf *Raft) readPersist(data []byte) {
     var votedFor int
     var log []Entry
     var snapIndex int
-    var snapTerm int
     if d.Decode(&currentTerm) != nil ||
        d.Decode(&votedFor) != nil ||
        d.Decode(&log) != nil ||
-       d.Decode(&snapIndex) != nil ||
-       d.Decode(&snapTerm) != nil {
+       d.Decode(&snapIndex) != nil {
         panic("readPersist failed")
     }
     rf.currentTerm = currentTerm
     rf.votedFor = votedFor
     rf.log = log
     rf.snapIndex = snapIndex
-    rf.snapTerm = snapTerm
 	rf.snapshot = rf.persister.ReadSnapshot()
 }
 
@@ -67,9 +63,8 @@ func (rf *Raft) Snapshot(index int, snapshot []byte) {
     }
 
 	snapTerm := rf.get(index).Term
-	rf.log = append([]Entry{Entry{}}, rf.log[index-rf.snapIndex+1:]...)
+	rf.log = append([]Entry{Entry{Term: snapTerm}}, rf.log[index-rf.snapIndex+1:]...)
 	rf.snapIndex = index // 只能增大！
-	rf.snapTerm = snapTerm
 	rf.snapshot = snapshot
 
 	rf.persist() // 同时保存 snapshot

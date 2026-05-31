@@ -52,6 +52,9 @@ func (rf *Raft) guardKick() {
 		j := 0 // rel-index
 
 		for i := start; i <= end; i++ {
+			if i <= rf.snapIndex {  // 已被快照覆盖，跳过
+				continue
+			}
 			applies[j] = ApplyMsg{
 				CommandValid: true,
 				Command: rf.get(i).Command,
@@ -63,7 +66,7 @@ func (rf *Raft) guardKick() {
 		rf.lastApplied = rf.commitIndex
 		rf.mu.Unlock() // -------------- 锁！----------
 
-		for _, apply := range applies {
+		for _, apply := range applies[:j] {
 			rf.applyCh <- apply
 		}
 

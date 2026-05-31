@@ -27,10 +27,10 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.state = Follower
 
 	rf.lastTouchedAt = time.Now() // 一上来就触发选举很显然是不对的。
-	rf.log = []Entry{Entry{}} // first index is 1 
+	rf.log = []Entry{Entry{Term: -1}} // first index is 1 
 
 	rf.snapIndex = 0
-	rf.snapTerm = -1
+	
 	
 
 

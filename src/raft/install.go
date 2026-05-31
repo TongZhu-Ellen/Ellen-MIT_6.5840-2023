@@ -23,7 +23,7 @@ func (rf *Raft) helpInstall(i int) {
         Term:              rf.currentTerm,
         LeaderId:          rf.me,
         LastIncludedIndex: rf.snapIndex,
-        LastIncludedTerm:  rf.snapTerm,
+        LastIncludedTerm:  rf.getSnap(),
         Data:              rf.snapshot,
     }
     reply := &InstallSnapshotReply{}
@@ -86,7 +86,7 @@ func (rf *Raft) InstallSnapshot(args *InstallSnapshotArgs, reply *InstallSnapsho
     }
     rf.log = newLog
     rf.snapIndex = args.LastIncludedIndex
-    rf.snapTerm = args.LastIncludedTerm
+    rf.setSnap(args.LastIncludedTerm)
     rf.snapshot = args.Data
     rf.persist()
 

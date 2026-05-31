@@ -180,6 +180,25 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	rf.touched()
 
+	
+
+	// 2D:
+	if args.PrevLogIndex <= rf.snapIndex {  // leader发来的prevLogIndex在快照范围内，一致性自动满足
+		reply.Term = rf.currentTerm
+		reply.Success = true
+		
+		appendStart := rf.snapIndex - args.PrevLogIndex  // 算出entries中第一个不在快照内的位置
+		if appendStart >= len(args.Entries) {            // entries全部在快照内，无需处理
+			rf.tryUpdateCommit(args.LeaderCommit)
+			return
+		}
+		
+		rf.reconcileEntries(rf.snapIndex + 1, appendStart, args.Entries)  // 从快照后第一条开始对账
+		rf.tryUpdateCommit(args.LeaderCommit)
+		return
+	}
+	
+
 
 	// 2. "Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm"
     if args.PrevLogIndex >= rf.logLength() {
@@ -193,7 +212,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	if rf.get(args.PrevLogIndex).Term != args.PrevLogTerm {
 		reply.XTerm = rf.get(args.PrevLogIndex).Term
 		xIndex := args.PrevLogIndex
-		for xIndex-1 >= 1 && rf.get(xIndex-1).Term == reply.XTerm {
+		for xIndex-1 >= rf.snapIndex+1 && rf.get(xIndex-1).Term == reply.XTerm {
 			xIndex--
 		}
 		reply.XIndex = xIndex
@@ -207,32 +226,16 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// 3. "If an existing entry conflicts with a new one (same index but different terms), 
 	// delete the existing entry and all that follow it"
-	myIdx := args.PrevLogIndex + 1
-	yourIdx := 0 
+	// 4. "Append any new entries not already in the log"
 
-	for myIdx < rf.logLength() && yourIdx < len(args.Entries) {
-		if rf.get(myIdx).Term != args.Entries[yourIdx].Term {
-			rf.log = rf.log[ : myIdx] // 连同这个也不要了。2D需要更改。
-			break
-		} 
-		myIdx++
-		yourIdx++
-	}
+	rf.reconcileEntries(args.PrevLogIndex + 1, 0, args.Entries)
 	
 
-	// 4. "Append any new entries not already in the log"
-	rf.batchAppend(args.Entries[yourIdx:])
+	
 	
 
 	// 5. "If leaderCommit > commitIndex, set commitIndex = min(leaderCommit, index of last new entry)"
-	if args.LeaderCommit > rf.commitIndex {
-		rf.commitIndex = min(args.LeaderCommit, rf.logLength() - 1)
-
-		if rf.commitIndex > rf.lastApplied {
-			rf.bEffortKick()
-		}
-
-	}
+	rf.tryUpdateCommit(args.LeaderCommit)
 
 
 	

@@ -82,7 +82,6 @@ type Raft struct {
 
 	// 2D:
 	snapIndex int  // 最后一个被 snapshot 的 index
-	snapTerm  int  // 那个 index 的 term
 	snapshot []byte
 
 }
